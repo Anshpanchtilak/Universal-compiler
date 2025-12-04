@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniCode - Universal Compiler</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Ace Editor (High Performance Code Editor) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/mode-java.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/mode-c_cpp.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/mode-python.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/mode-javascript.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/theme-dracula.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+        }
+        
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #editor { 
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        .loader {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col text-slate-300 overflow-hidden">
+
+    <!-- Navbar -->
+    <nav class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-code"></i>
+            </div>
+            <h1 class="text-xl font-bold text-white tracking-tight">Omni<span class="text-blue-500">Code</span></h1>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <!-- Language Selector -->
+            <div class="relative group">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-layer-group text-slate-500 group-hover:text-blue-400 transition-colors"></i>
+                </div>
+                <select id="languageSelect" class="bg-slate-800 border border-slate-700 text-sm rounded-lg block w-40 pl-10 p-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-slate-750">
+                    <option value="java">Java (OpenJDK)</option>
+                    <option value="cpp">C++ (GCC)</option>
+                    <option value="python">Python 3</option>
+                    <option value="javascript">Node.js</option>
+                </select>
+            </div>
+
+            <!-- Run Button -->
+            <button id="runBtn" class="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-semibold py-2 px-6 rounded-lg transition-all transform active:scale-95 shadow-lg shadow-green-900/20">
+                <i class="fa-solid fa-play text-xs"></i>
+                <span>Run Code</span>
+                <div id="loadingSpinner" class="loader hidden ml-2"></div>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Editor Section -->
+        <div class="flex-1 relative border-r border-slate-800 bg-slate-900 flex flex-col min-h-[50vh]">
+            <!-- File Tab -->
+            <div class="bg-slate-950 px-4 py-2 flex items-center gap-2 border-b border-slate-800">
+                <i id="fileIcon" class="fa-brands fa-java text-orange-500"></i>
+                <span id="fileName" class="text-sm font-medium text-slate-300">Main.java</span>
+            </div>
+            <!-- Editor Container -->
+            <div class="flex-1 relative">
+                <div id="editor"></div>
+            </div>
+        </div>
+
+        <!-- IO Panel Section -->
+        <div class="w-full lg:w-[400px] bg-slate-950 flex flex-col border-l border-slate-800">
+            
+            <!-- Input Section -->
+            <div class="h-1/3 flex flex-col border-b border-slate-800">
+                <div class="px-4 py-2 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Standard Input (stdin)</span>
+                    <i class="fa-regular fa-keyboard text-slate-600"></i>
+                </div>
+                <textarea id="inputArea" class="flex-1 bg-slate-950 text-slate-300 p-4 font-mono text-sm outline-none resize-none focus:bg-slate-900/50 transition-colors placeholder-slate-700" placeholder="Enter input for your program here..."></textarea>
+            </div>
+
+            <!-- Output Section -->
+            <div class="flex-1 flex flex-col min-h-0">
+                <div class="px-4 py-2 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Output</span>
+                    <button id="clearBtn" class="text-xs text-slate-500 hover:text-white transition-colors">
+                        <i class="fa-solid fa-trash mr-1"></i> Clear
+                    </button>
+                </div>
+                <div id="outputArea" class="flex-1 bg-[#0d1117] p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap">
+                    <div class="text-slate-600 italic">Run the code to see output...</div>
+                </div>
+                
+                <!-- Status Bar -->
+                <div class="bg-slate-900 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500">
+                    <span id="statusText">Ready</span>
+                    <span id="execTime"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Boilerplate Templates ---
+        const templates = {
+            java: {
+                code: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, Java World!");
+        
+        // Example of input reading
+        // Scanner scanner = new Scanner(System.in);
+        // String name = scanner.nextLine();
+    }
+}`,
+                fileName: 'Main.java',
+                mode: 'ace/mode/java',
+                icon: 'fa-brands fa-java text-orange-500',
+                pistonLang: 'java',
+                version: '15.0.2'
+            },
+            cpp: {
+                code: `#include <iostream>
+#include <string>
+
+using namespace std;
+
+int main() {
+    cout << "Hello, C++ World!" << endl;
+    
+    // string input;
+    // cin >> input;
+    
+    return 0;
+}`,
+                fileName: 'main.cpp',
+                mode: 'ace/mode/c_cpp',
+                icon: 'fa-solid fa-c text-blue-500', // C++ icon approximation
+                pistonLang: 'c++',
+                version: '10.2.0'
+            },
+            python: {
+                code: `print("Hello, Python World!")
+
+# name = input()
+# print("You entered: " + name)
+`,
+                fileName: 'main.py',
+                mode: 'ace/mode/python',
+                icon: 'fa-brands fa-python text-yellow-400',
+                pistonLang: 'python',
+                version: '3.10.0'
+            },
+            javascript: {
+                code: `console.log("Hello, JavaScript World!");
+
+// Standard input handling in Node.js environment
+// const fs = require('fs');
+// const stdin = fs.readFileSync(0, 'utf-8');
+`,
+                fileName: 'index.js',
+                mode: 'ace/mode/javascript',
+                icon: 'fa-brands fa-js text-yellow-300',
+                pistonLang: 'javascript',
+                version: '18.15.0'
+            }
+        };
+
+        // --- Initialize Ace Editor ---
+        const editor = ace.edit("editor");
+        editor.setTheme("ace/theme/dracula");
+        editor.setShowPrintMargin(false);
+        editor.setFontSize(14);
+        editor.session.setUseSoftTabs(true);
+        editor.session.setTabSize(4);
+
+        // --- DOM Elements ---
+        const languageSelect = document.getElementById('languageSelect');
+        const fileNameEl = document.getElementById('fileName');
+        const fileIconEl = document.getElementById('fileIcon');
+        const outputArea = document.getElementById('outputArea');
+        const inputArea = document.getElementById('inputArea');
+        const runBtn = document.getElementById('runBtn');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const statusText = document.getElementById('statusText');
+        const execTimeEl = document.getElementById('execTime');
+        const clearBtn = document.getElementById('clearBtn');
+
+        let currentLang = 'java';
+
+        // --- Functions ---
+
+        function setLanguage(langKey) {
+            currentLang = langKey;
+            const config = templates[langKey];
+            
+            // Set Editor Mode
+            editor.session.setMode(config.mode);
+            
+            // Set Content
+            editor.setValue(config.code, -1); // -1 moves cursor to start
+            
+            // Update UI
+            fileNameEl.textContent = config.fileName;
+            fileIconEl.className = config.icon;
+            
+            // Clear Output
+            outputArea.innerHTML = '<div class="text-slate-600 italic">Ready to run...</div>';
+            statusText.textContent = `Language switched to ${config.pistonLang}`;
+        }
+
+        async function runCode() {
+            const config = templates[currentLang];
+            const sourceCode = editor.getValue();
+            const stdin = inputArea.value;
+
+            // UI Loading State
+            runBtn.disabled = true;
+            runBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            loadingSpinner.classList.remove('hidden');
+            outputArea.innerHTML = '<div class="text-blue-400 animate-pulse">Compiling and executing...</div>';
+            statusText.textContent = 'Running...';
+            execTimeEl.textContent = '';
+
+            try {
+                const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        language: config.pistonLang,
+                        version: config.version,
+                        files: [
+                            {
+                                name: config.fileName,
+                                content: sourceCode
+                            }
+                        ],
+                        stdin: stdin
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.run) {
+                    const output = data.run.output || 'No output returned.';
+                    const isError = data.run.stderr.length > 0;
+                    
+                    // Format output with colors for simple ANSI codes (basic implementation) or just raw text
+                    // For safety and simplicity, we render as text but allow green/red coloring based on exit code
+                    
+                    if (data.run.code === 0 && !isError) {
+                         outputArea.textContent = output;
+                         outputArea.classList.remove('text-red-400');
+                         outputArea.classList.add('text-green-300');
+                    } else {
+                        // Mixed output (stdout + stderr)
+                        outputArea.textContent = output;
+                        outputArea.classList.remove('text-green-300');
+                        outputArea.classList.add('text-red-400'); // Error color
+                    }
+                    
+                    // Reset text color for standard display if not strictly error
+                    if(data.run.code === 0) outputArea.className = "flex-1 bg-[#0d1117] p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap text-slate-300";
+                    else outputArea.className = "flex-1 bg-[#0d1117] p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap text-red-300";
+
+                    statusText.textContent = `Exit Code: ${data.run.code}`;
+                    // Piston doesn't always send execution time, but if we tracked it:
+                    // execTimeEl.textContent = `~${data.run.signal || 'Done'}`;
+                } else {
+                    outputArea.textContent = "Error: Failed to execute code via Piston API.";
+                    statusText.textContent = "API Error";
+                }
+
+            } catch (error) {
+                outputArea.textContent = "Network Error: Could not reach the compiler server.\n" + error.message;
+                statusText.textContent = "Connection Failed";
+            } finally {
+                // Restore UI
+                runBtn.disabled = false;
+                runBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        // --- Event Listeners ---
+
+        languageSelect.addEventListener('change', (e) => {
+            if(confirm("Switching languages will reset your current code. Continue?")) {
+                setLanguage(e.target.value);
+            } else {
+                e.target.value = currentLang; // Revert selection
+            }
+        });
+
+        runBtn.addEventListener('click', runCode);
+
+        clearBtn.addEventListener('click', () => {
+            outputArea.innerHTML = '';
+            statusText.textContent = 'Cleared';
+        });
+
+        // Initialize with Java
+        setLanguage('java');
+
+        // Shortcut: Ctrl+Enter to Run
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                runCode();
+            }
+        });
+
+    </script>
+</body>
+</html>
